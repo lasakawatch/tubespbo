@@ -25,6 +25,7 @@ public class RentalSession {
     private Integer consoleIdRef;
     private Integer roomIdRef;
     private Integer memberIdRef;
+    private String tarifType; // STANDARD, WEEKEND, MEMBER
     
     /**
      * Default constructor
@@ -33,6 +34,7 @@ public class RentalSession {
         this.status = SessionStatus.ACTIVE;
         this.pausedMinutes = 0;
         this.totalFee = 0;
+        this.tarifType = "STANDARD";
     }
     
     public RentalSession(Room room, ConsoleUnit consoleUnit, int durationMinutes) {
@@ -268,5 +270,13 @@ public class RentalSession {
     
     public void setTotalFee(int totalFee) {
         this.totalFee = totalFee;
+    }
+    
+    public String getTarifType() {
+        return tarifType;
+    }
+    
+    public void setTarifType(String tarifType) {
+        this.tarifType = tarifType;
     }
 }

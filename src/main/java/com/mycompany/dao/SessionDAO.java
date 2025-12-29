@@ -161,14 +161,15 @@ public class SessionDAO {
      * Update session
      */
     public boolean update(RentalSession session) {
-        String sql = "UPDATE rental_sessions SET status = ?, actual_end_time = ?, total_fee = ?, paused_minutes = ? WHERE id = ?";
+        String sql = "UPDATE rental_sessions SET status = ?, actual_end_time = ?, total_fee = ?, paused_minutes = ?, tarif_type = ? WHERE id = ?";
         try (Connection conn = DatabaseConnection.connect();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, session.getStatus().name());
             pstmt.setTimestamp(2, session.getActualEndTime());
             pstmt.setInt(3, session.getTotalFee());
             pstmt.setInt(4, session.getPausedMinutes());
-            pstmt.setInt(5, session.getId());
+            pstmt.setString(5, session.getTarifType() != null ? session.getTarifType() : "STANDARD");
+            pstmt.setInt(6, session.getId());
             return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -306,6 +307,10 @@ public class SessionDAO {
         session.setConsoleId(consoleId);
         session.setRoomId(roomIdDb);
         session.setMemberId(memberId);
+        
+        // Set tarif type
+        String tarifType = rs.getString("tarif_type");
+        session.setTarifType(tarifType != null ? tarifType : "STANDARD");
         
         return session;
     }

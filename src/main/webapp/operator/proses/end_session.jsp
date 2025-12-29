@@ -4,6 +4,7 @@
 <%@ page import="com.mycompany.dao.*" %>
 <%@ page import="com.mycompany.model.*" %>
 <%@ page import="com.mycompany.model.enums.*" %>
+<%@ page import="com.mycompany.model.strategy.TarifFactory" %>
 
 <%
     String role = (String) session.getAttribute("role");
@@ -18,6 +19,7 @@
         ConsoleDAO consoleDAO = new ConsoleDAO();
         RoomDAO roomDAO = new RoomDAO();
         MemberDAO memberDAO = new MemberDAO();
+        PaymentDAO paymentDAO = new PaymentDAO();
         
         try {
             int id = Integer.parseInt(idStr);
@@ -31,60 +33,59 @@
                     room = roomDAO.findById(rentSession.getRoomId());
                 }
                 
-                // 2. Hitung Durasi
-                // FIXED: Gunakan durasi yang sudah dipesan (planned), bukan waktu real
-                // Karena waktu real bisa dipengaruhi oleh kapan user klik "Selesai"
+                // 2. Hitung Durasi berdasarkan PLANNED (yang sudah dipesan)
                 long endTime = new java.util.Date().getTime();
                 long startTime = rentSession.getStartTime().getTime();
                 long plannedEnd = rentSession.getPlannedEndTime().getTime();
-                long pausedMs = rentSession.getPausedMinutes() * 60 * 1000;
                 
-                // Durasi yang sebenarnya dimainkan (real duration)
-                long realDurationMs = endTime - startTime - pausedMs;
-                
-                // Durasi yang dipesan (planned duration) - tanpa hitung pause karena planned sudah di-extend
-                long plannedDurationMs = plannedEnd - startTime - pausedMs;
-                
-                // Gunakan durasi TERPAKAI yang lebih besar
-                // Jika user main lebih lama dari booking -> charge lebih
-                // Jika user selesai lebih cepat -> tetap charge sesuai booking
-                long billableDurationMs = Math.max(realDurationMs, plannedDurationMs);
+                // Durasi yang dipesan (dari start sampai planned end)
+                long plannedDurationMs = plannedEnd - startTime;
                 
                 // Konversi ke Jam (Pembulatan ke atas, minimal 1 jam)
-                double durationHours = Math.ceil(billableDurationMs / (1000.0 * 60 * 60));
+                double durationHours = Math.ceil(plannedDurationMs / (1000.0 * 60 * 60));
                 if (durationHours < 1.0) durationHours = 1.0;
                 
                 // 3. Hitung Base Rate (Harga Konsol + Harga Ruangan)
-                double ratePerHour = console.getRatePerHour();
-                if (room != null) ratePerHour += room.getRatePerHour();
+                double consoleRate = console.getRatePerHour();
+                double roomRate = (room != null) ? room.getRatePerHour() : 0;
+                double baseRatePerHour = consoleRate + roomRate;
                 
-                // 4. Hitung Harga Normal (Sebelum Diskon)
-                double normalPrice = durationHours * ratePerHour;
+                // 4. Hitung Harga Normal (Sebelum Surcharge dan Diskon)
+                double normalPrice = durationHours * baseRatePerHour;
                 
-                // 5. HITUNG DISKON MEMBER (LOGIC UTAMA)
+                // 5. CEK WEEKEND SURCHARGE (+50%)
+                boolean isWeekend = TarifFactory.isWeekend();
+                double weekendSurcharge = 0;
+                if (isWeekend) {
+                    weekendSurcharge = normalPrice * 0.5; // +50%
+                }
+                
+                // Subtotal setelah weekend surcharge
+                double subtotalAfterSurcharge = normalPrice + weekendSurcharge;
+                
+                // 6. HITUNG DISKON MEMBER
                 double discountAmount = 0;
+                int discountPercent = 0;
                 Member member = null;
                 
                 if (rentSession.getMemberId() != null && rentSession.getMemberId() > 0) {
                     member = memberDAO.findById(rentSession.getMemberId());
                     if (member != null) {
-                        // Ambil persen diskon dari Enum MemberLevel yang baru kita edit
-                        int discountPercent = member.getLevel().getDiscountPercent();
-                        
-                        // Hitung potongan
-                        discountAmount = normalPrice * (discountPercent / 100.0);
+                        discountPercent = member.getLevel().getDiscountPercent();
+                        discountAmount = subtotalAfterSurcharge * (discountPercent / 100.0);
                     }
                 }
                 
-                // 6. Harga Akhir
-                int finalPrice = (int) (normalPrice - discountAmount);
+                // 7. Harga Akhir
+                int finalPrice = (int) Math.round(subtotalAfterSurcharge - discountAmount);
                 
-                // 7. Update Object Session
+                // 8. Update Object Session dengan info tarif
                 rentSession.setActualEndTime(new Timestamp(endTime));
                 rentSession.setTotalFee(finalPrice);
                 rentSession.setStatus(SessionStatus.COMPLETED);
+                rentSession.setTarifType(isWeekend ? "WEEKEND" : "STANDARD");
                 
-                // 8. Simpan ke Database
+                // 9. Simpan ke Database
                 if (sessionDAO.update(rentSession)) {
                     // Update status Konsol jadi AVAILABLE lagi
                     console.setStatus(ConsoleStatus.AVAILABLE);
@@ -97,7 +98,6 @@
                     }
                     
                     // UPDATE POIN MEMBER (Bonus)
-                    // Misal: Tiap Rp 10.000 bayar = 1 Poin
                     if (member != null) {
                         int pointsEarned = finalPrice / 10000;
                         member.setPoints(member.getPoints() + pointsEarned);
@@ -105,11 +105,24 @@
                         memberDAO.update(member);
                     }
                     
-                    // Simpan data pembayaran ke tabel payments (Optional tapi bagus buat laporan)
-                    // Disini kita skip logic payment insert DAO biar simpel, anggap tercatat di session
+                    // 10. Simpan ke tabel payments untuk laporan
+                    Payment payment = new Payment();
+                    payment.setSessionId(rentSession.getId());
+                    payment.setAmount(finalPrice);
+                    payment.setPaymentMethod(com.mycompany.model.enums.PaymentMethod.CASH);
+                    payment.setPaymentTime(new Timestamp(endTime));
+                    paymentDAO.save(payment);
                     
-                    // Redirect ke Halaman Pembayaran/Struk
-                    response.sendRedirect("../payment.jsp?sessionId=" + id);
+                    // Redirect ke Halaman Pembayaran/Struk dengan data lengkap
+                    String params = "?sessionId=" + id + 
+                                   "&normalPrice=" + (int)normalPrice +
+                                   "&weekendSurcharge=" + (int)weekendSurcharge +
+                                   "&discountAmount=" + (int)discountAmount +
+                                   "&discountPercent=" + discountPercent +
+                                   "&finalPrice=" + finalPrice +
+                                   "&durationHours=" + durationHours +
+                                   "&isWeekend=" + isWeekend;
+                    response.sendRedirect("../payment.jsp" + params);
                 } else {
                     response.sendRedirect("../dashboard.jsp?error=Gagal mengupdate sesi");
                 }

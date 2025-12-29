@@ -217,11 +217,12 @@
                                         <td><span class="badge <%= (sess.getStatus() == SessionStatus.ACTIVE) ? "badge-success" : "badge-warning" %>"><%= sess.getStatus().getDisplayName() %></span></td>
                                         <td>
                                             <% if (sess.getStatus() == SessionStatus.ACTIVE) { %>
-                                            <a href="proses/pause_session.jsp?id=<%= sess.getId() %>" class="btn btn-warning btn-sm"><i class="fas fa-pause"></i></a>
+                                            <a href="proses/pause_session.jsp?id=<%= sess.getId() %>" class="btn btn-warning btn-sm" title="Pause"><i class="fas fa-pause"></i></a>
                                             <% } else if (sess.getStatus() == SessionStatus.PAUSED) { %>
-                                            <a href="proses/resume_session.jsp?id=<%= sess.getId() %>" class="btn btn-success btn-sm"><i class="fas fa-play"></i></a>
+                                            <a href="proses/resume_session.jsp?id=<%= sess.getId() %>" class="btn btn-success btn-sm" title="Resume"><i class="fas fa-play"></i></a>
                                             <% } %>
-                                            <a href="proses/end_session.jsp?id=<%= sess.getId() %>" class="btn btn-danger btn-sm" onclick="return confirm('Akhiri sesi ini dan hitung biaya?')"><i class="fas fa-stop"></i></a>
+                                            <button type="button" class="btn btn-info btn-sm" title="Tambah Waktu" onclick="showExtendModal(<%= sess.getId() %>)"><i class="fas fa-plus-circle"></i></button>
+                                            <a href="proses/end_session.jsp?id=<%= sess.getId() %>" class="btn btn-danger btn-sm" title="Akhiri & Bayar" onclick="return confirm('Akhiri sesi ini dan hitung biaya?')"><i class="fas fa-stop"></i></a>
                                         </td>
                                     </tr>
                                     <% } %>
@@ -414,6 +415,19 @@
         }
         setInterval(updateCountdowns, 1000);
         updateCountdowns(); 
+        
+        // Extend time modal function
+        function showExtendModal(sessionId) {
+            var hours = prompt('Tambah waktu berapa jam? (1-5):', '1');
+            if (hours !== null) {
+                hours = parseInt(hours);
+                if (hours >= 1 && hours <= 5) {
+                    window.location.href = 'proses/extend_session.jsp?id=' + sessionId + '&hours=' + hours;
+                } else {
+                    alert('Masukkan angka 1-5 untuk jumlah jam!');
+                }
+            }
+        }
     </script>
 </body>
 </html>

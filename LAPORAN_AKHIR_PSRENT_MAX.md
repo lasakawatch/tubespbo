@@ -761,6 +761,14 @@ private static final String PASSWORD = "";
 | PlayStation 4 (PS4) | Rp 15.000 |
 | PlayStation 5 (PS5) | Rp 25.000 |
 
+## Tarif Ruangan
+
+| Tipe Ruangan | Tarif per Jam |
+|--------------|---------------|
+| Standard | Rp 0 (Hanya bayar console) |
+| VIP | Rp 5.000 |
+| VVIP | Rp 10.000 |
+
 ## Strategi Tarif
 
 | Strategi | Keterangan | Perhitungan |
@@ -777,6 +785,88 @@ private static final String PASSWORD = "";
 | GOLD | ≥ 1.000 poin | 10% |
 | PLATINUM | ≥ 2.000 poin | 15% |
 | VVIP | ≥ 5.000 poin | 20% |
+
+## Perhitungan Harga Akhir (REVISI FINAL)
+
+Sistem menghitung harga dengan urutan sebagai berikut:
+
+1. **Harga Normal** = Durasi (jam) × (Tarif Console + Tarif Ruangan)
+2. **Weekend Surcharge** = Harga Normal × 50% (jika hari Sabtu/Minggu)
+3. **Subtotal** = Harga Normal + Weekend Surcharge
+4. **Diskon Member** = Subtotal × Persentase Diskon Level
+5. **Harga Akhir** = Subtotal - Diskon Member
+
+### Contoh Perhitungan:
+- Sewa PS5 + VIP Room selama 2 jam di hari Minggu (Member GOLD)
+- Harga Normal: 2 × (25.000 + 5.000) = Rp 60.000
+- Weekend Surcharge: 60.000 × 50% = Rp 30.000
+- Subtotal: 60.000 + 30.000 = Rp 90.000
+- Diskon GOLD (10%): 90.000 × 10% = Rp 9.000
+- **Harga Akhir: Rp 81.000**
+
+---
+
+# BAB VIII-A - FITUR REVISI FINAL
+
+## Fitur Baru yang Ditambahkan
+
+### 1. Pause/Resume Session yang Benar
+Sebelum revisi, waktu terus berjalan meskipun session di-pause. Sekarang:
+- Ketika **PAUSE**: Waktu tersimpan, countdown berhenti
+- Ketika **RESUME**: `planned_end_time` diperpanjang sebesar durasi pause
+- Waktu sewa tidak terbuang saat customer istirahat
+
+**File Terkait:** `SessionDAO.java` (method `pauseSession()`, `resumeSession()`, `updateWithPlannedEndTime()`)
+
+### 2. Tambah Waktu (Extend Session)
+Customer dapat menambah durasi sesi yang sedang berjalan:
+- Tombol "Tambah Waktu" di dashboard operator
+- Pilihan 1-5 jam tambahan
+- `planned_end_time` diperpanjang otomatis
+- Bekerja untuk sesi ACTIVE maupun PAUSED
+
+**File Terkait:** `extend_session.jsp`, `dashboard.jsp`
+
+### 3. Struk Pembayaran Detail
+Struk sekarang menampilkan breakdown lengkap:
+```
+========================================
+         PSRENT MAX - STRUK PEMBAYARAN
+========================================
+
+DETAIL TRANSAKSI:
+- Session ID: #12345
+- Tanggal: 29/12/2025 16:30
+- Durasi: 3 jam
+
+RINCIAN BIAYA:
+- Harga Normal (3 jam)      Rp 90.000
++ Weekend Surcharge (+50%)  Rp 45.000
+                           -----------
+  Subtotal                  Rp 135.000
+- Diskon Member GOLD (10%)  Rp 13.500
+                           ===========
+  TOTAL BAYAR               Rp 121.500
+
+BONUS POIN MEMBER: +12 poin
+========================================
+```
+
+**File Terkait:** `end_session.jsp`, `payment.jsp`
+
+### 4. Weekend Surcharge Otomatis
+Sistem otomatis mendeteksi hari Sabtu/Minggu menggunakan `TarifFactory.isWeekend()`:
+- Hari Sabtu & Minggu: +50% dari harga normal
+- Ditampilkan terpisah di struk pembayaran
+- Warna header struk berbeda (Hijau untuk weekday, Orange untuk weekend)
+
+**File Terkait:** `TarifFactory.java`, `end_session.jsp`, `payment.jsp`
+
+### 5. Perbaikan Durasi Kalkulasi
+Sebelum revisi, durasi selalu 1 jam. Sekarang:
+- Durasi dihitung dari `planned_end_time - start_time`
+- Pembulatan ke atas (30 menit = 1 jam)
+- Minimum pembayaran 1 jam
 
 ---
 
@@ -806,6 +896,11 @@ private static final String PASSWORD = "";
 | 18 | Tarif Weekend | +50% dari standard | ✅ Pass |
 | 19 | Tarif Member | Diskon sesuai level | ✅ Pass |
 | 20 | Tambah Member | Member tersimpan | ✅ Pass |
+| 21 | Pause/Resume (REVISI) | Waktu berhenti saat pause, lanjut saat resume | ✅ Pass |
+| 22 | Extend Session (BARU) | Durasi bertambah sesuai jam | ✅ Pass |
+| 23 | Struk Detail (REVISI) | Breakdown lengkap tampil | ✅ Pass |
+| 24 | Weekend Detection (BARU) | Sabtu/Minggu otomatis +50% | ✅ Pass |
+| 25 | Durasi Kalkulasi (REVISI) | Durasi sesuai yang dipesan | ✅ Pass |
 
 ## Checklist Konsep OOP
 
@@ -828,13 +923,26 @@ Aplikasi PSRent Max telah berhasil dikembangkan dengan menerapkan konsep-konsep 
 
 1. **Autentikasi Multi-Role**: Admin dan Operator dengan hak akses berbeda
 2. **Manajemen Inventori**: Pengelolaan console PS4/PS5 dan ruangan
-3. **Manajemen Sesi Rental**: Start, pause, resume, dan end session
+3. **Manajemen Sesi Rental**: Start, pause, resume, extend, dan end session
 4. **Perhitungan Tarif Dinamis**: Strategy pattern untuk tarif fleksibel
-5. **Sistem Reservasi**: Dengan deteksi konflik jadwal otomatis
-6. **Pelaporan**: Laporan harian dan bulanan untuk analisis bisnis
-7. **Sistem Member**: Level dan diskon bertingkat
+5. **Weekend Surcharge**: Otomatis +50% untuk hari Sabtu & Minggu
+6. **Sistem Reservasi**: Dengan deteksi konflik jadwal otomatis
+7. **Pelaporan**: Laporan harian dan bulanan untuk analisis bisnis
+8. **Sistem Member**: Level dan diskon bertingkat (SILVER, GOLD, PLATINUM, VVIP)
+9. **Struk Pembayaran Detail**: Breakdown lengkap (Harga Normal, Weekend Surcharge, Diskon)
+10. **Fitur Extend Session**: Tambah waktu untuk sesi yang sedang berjalan
 
 Dengan implementasi design pattern (Singleton, Strategy, Factory) dan arsitektur MVC, aplikasi ini mudah dipelihara dan dikembangkan di masa depan.
+
+## Revisi Final
+
+Revisi final mencakup perbaikan-perbaikan penting:
+- ✅ **Pause/Resume** yang benar (waktu berhenti saat pause)
+- ✅ **Durasi dihitung dari planned_end_time** (bukan selalu 1 jam)
+- ✅ **Weekend surcharge otomatis** (+50% Sabtu/Minggu)
+- ✅ **Struk pembayaran detail** dengan breakdown lengkap
+- ✅ **Fitur Tambah Waktu** untuk extend session
+- ✅ **Kalkulasi diskon member** yang benar
 
 ---
 
@@ -910,6 +1018,10 @@ porjecttubes_rev1/
         └── proses/
             ├── create_reservation.jsp
             ├── start_session.jsp
+            ├── pause_session.jsp
+            ├── resume_session.jsp
+            ├── end_session.jsp
+            ├── extend_session.jsp  ← BARU (Tambah Waktu)
             └── ...
 ```
 
