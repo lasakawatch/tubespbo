@@ -54,17 +54,6 @@
                 double durationHours = Math.ceil(billableDurationMs / (1000.0 * 60 * 60));
                 if (durationHours < 1.0) durationHours = 1.0;
                 
-                // Debug log
-                System.out.println("[DEBUG END SESSION] ID: " + id);
-                System.out.println("[DEBUG] Start: " + rentSession.getStartTime());
-                System.out.println("[DEBUG] Planned End: " + rentSession.getPlannedEndTime());
-                System.out.println("[DEBUG] Actual End (now): " + new java.sql.Timestamp(endTime));
-                System.out.println("[DEBUG] Paused Minutes: " + rentSession.getPausedMinutes());
-                System.out.println("[DEBUG] Real Duration Ms: " + realDurationMs);
-                System.out.println("[DEBUG] Planned Duration Ms: " + plannedDurationMs);
-                System.out.println("[DEBUG] Billable Duration Ms: " + billableDurationMs);
-                System.out.println("[DEBUG] Duration Hours: " + durationHours);
-                
                 // 3. Hitung Base Rate (Harga Konsol + Harga Ruangan)
                 double ratePerHour = console.getRatePerHour();
                 if (room != null) ratePerHour += room.getRatePerHour();
